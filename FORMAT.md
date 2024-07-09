@@ -24,7 +24,7 @@ All values are encoded in little-endian byte order.
 | --- | --- | --- |
 | 0x0 | 4 | Magic number (`AEA1`) |
 | 0x4 | 3 | [Profile id](#profiles) |
-| 0x7 | 1 | Unknown |
+| 0x7 | 1 | Always 0 |
 | 0x8 | 4 | Auth data size |
 
 ### Profiles
@@ -33,7 +33,7 @@ All values are encoded in little-endian byte order.
 | 0 | No encryption, signed |
 | 1 | Symmetric key encryption |
 | 2 | Symmetric key encryption, signed |
-| 3 | ECDHE encrpytion |
+| 3 | ECDHE encryption |
 | 4 | ECDHE encryption, signed |
 | 5 | Scrypt encryption (password based) |
 
