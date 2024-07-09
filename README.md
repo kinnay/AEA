@@ -9,7 +9,7 @@ Eventually, this repository aims to provide the following features:
 Currently, only partial documentation of the file format is available.
 
 ### Documentation
-* [The AEA file format](https://github.com/kinnay/AEA/blob/master/FORMAT.md)
+* [The AEA file format](https://github.com/kinnay/AEA/blob/main/FORMAT.md)
 
 ### Contributing
 Feel free to open a pull request or issue on GitHub. Please try to follow the current style as much as possible.
