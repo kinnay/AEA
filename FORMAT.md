@@ -6,7 +6,7 @@ This page describes the file format of Apple Encrypted Archives. The AEA format 
 Every AEA file is laid out as follows:
 
 * [File header](#file-header)
-* Auth data
+* [Auth data](#auth-data)
 * Signature
 * Random key
 * Random salt for [main key](#key-derivation)
@@ -15,7 +15,7 @@ Every AEA file is laid out as follows:
 * MAC of first cluster
 * [Encrypted clusters](#cluster)
 
-Depending on the [profile](#profiles) that is specified in the [header](#file-header), some sections may not be present in the file.
+The file header and auth data sections are the only sections that are not encrypted.
 
 All values are encoded in little-endian byte order.
 
@@ -35,7 +35,20 @@ All values are encoded in little-endian byte order.
 | 2 | Symmetric key encryption, signed |
 | 3 | ECDHE encryption |
 | 4 | ECDHE encryption, signed |
-| 5 | Scrypt encryption (password based) |
+| 5 | Scrypt encryption (password based) 
+
+## Auth Data
+The auth data is stored right after the [file header](#file-header) and contains either a raw binary blob or a number of key-value pairs. The size of the auth data is specified in the [file header](#file-header). If the auth data contains a list of key-value pairs, every pair is encoded by concatening the key and value with a null byte inbetween, and is prefixed with a 32-bit integer that specifies its size:
+
+```python
+def encode(key, value):
+    pair = key + b"\0" + value
+    return struct.pack("<I", len(pair)) + pair
+```
+
+Example: `090000006b65790076616c7565`
+
+There is no padding between key-value pairs or behind the auth data, even if this causes the rest of the file to be unaligned.
 
 ## Root Header
 The root header is encrypted with the [root header key](#key-derivation).
