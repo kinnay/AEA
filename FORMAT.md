@@ -1,19 +1,23 @@
 
 # AEA File Format
-This page describes the file format of Apple Encrypted Archives. The AEA format allows user to compress, encrypt and sign their files. The file extension is generally `.aea`.
+This page describes the file format of Apple Encrypted Archives. The AEA format allows users to compress, encrypt and sign their files. The file extension is generally `.aea`.
 
 ## General Structure
 Every AEA file is laid out as follows:
 
 * [File header](#file-header)
 * [Auth data](#auth-data)
-* Signature
-* Random key
-* Random salt for [main key](#key-derivation)
+* [Signature](#signature)
+* [Hardcoded key](#hardcoded-key)
+* [Hardcoded salt](#hardcoded-salt)
 * Root header MAC
 * [Encrypted root header](#root-header)
 * MAC of first cluster
 * [Encrypted clusters](#cluster)
+
+The following concepts are also important:
+* [Profiles](#profiles)
+* [Key derivation](#key-derivation)
 
 The file header and auth data sections are the only sections that are not encrypted.
 
@@ -27,16 +31,6 @@ All values are encoded in little-endian byte order.
 | 0x7 | 1 | Always 0 |
 | 0x8 | 4 | Auth data size |
 
-### Profiles
-| ID | Description |
-| --- | --- |
-| 0 | No encryption, signed |
-| 1 | Symmetric key encryption |
-| 2 | Symmetric key encryption, signed |
-| 3 | ECDHE encryption |
-| 4 | ECDHE encryption, signed |
-| 5 | Scrypt encryption (password based) 
-
 ## Auth Data
 The auth data is stored right after the [file header](#file-header) and contains either a raw binary blob or a number of key-value pairs. The size of the auth data is specified in the [file header](#file-header). If the auth data contains a list of key-value pairs, every pair is encoded by concatening the key and value with a null byte inbetween, and is prefixed with a 32-bit integer that specifies its size:
 
@@ -49,6 +43,19 @@ def encode(key, value):
 Example: `090000006b65790076616c7565`
 
 There is no padding between key-value pairs or behind the auth data, even if this causes the rest of the file to be unaligned.
+
+## Signature
+If the profile uses signing, this section contains an ECDSA signature. The signature is calculated over the SHA-256 hash of all bytes from the start of the file up to and including the first cluster MAC, with the signature itself set to null bytes. The key is specified on the command line.
+
+If the profile does not use signing, this section is empty.
+
+## Hardcoded Key
+If the profile specifies encryption, this section is empty and the key is specified on the command line.
+
+If the profile does not specify encryption, this section contains a random 32-byte key. In this case, the archive is still encrypted with AES-CTR, but the [main key](#main-key) is derived from the hardcoded key instead of a user-specified key.
+
+## Hardcoded Salt
+This section contains 32 random bytes. This is the salt that is used to derive the [main key](#main-key).
 
 ## Root Header
 The root header is encrypted with the [root header key](#key-derivation).
@@ -81,6 +88,32 @@ The segment headers are encrypted with the [cluster header key](#key-derivation)
 | 0x4 | 4 | Encoded size |
 | 0x8 | | Checksum |
 
+## Profiles
+The AEA file format supports different profiles, each of which specifies a different type of encryption and signatures. The following tables describe the different profiles:
+
+* [Purpose](#purpose)
+* [Names](#names)
+
+### Purpose
+| Profile ID | Purpose |
+| --- | --- |
+| 0 | No encryption, signed |
+| 1 | Symmetric encryption |
+| 2 | Symmetric encryption, signed |
+| 3 | Asymmetric encryption |
+| 4 | Asymmetric encryption, signed |
+| 5 | Scrypt encryption (password based) |
+
+### Names
+| Profile ID | Name |
+| --- | --- |
+| 0 | `hkdf_sha256_hmac__none__ecdsa_p256` |
+| 1 | `hkdf_sha256_aesctr_hmac__symmetric__none` |
+| 2 | `hkdf_sha256_aesctr_hmac__symmetric__ecdsa_p256` |
+| 3 | `hkdf_sha256_aesctr_hmac__ecdhe_p256__none` |
+| 4 | `hkdf_sha256_aesctr_hmac__ecdhe_p256__ecdsa_p256` |
+| 5 | `hkdf_sha256_aesctr_hmac__scrypt__none` |
+
 ## Key Derivation
 All keys that are used in the AEA format are derived using HKDF-SHA256. The IKM, info and salt depend on the type of key that is generated. Keys come in two flavors:
 * 32-byte keys that are used to derive other keys.
@@ -94,7 +127,7 @@ The second flavor is laid out as follows:
 | 0x20 | 32 | AES-CTR key |
 | 0x40 | 16 | AES-CTR IV |
 
-The following keys are currently known:
+The following keys are used in AEA files:
 
 * [Main key](#main-key)
 * [Root header key](#root-header-key)
