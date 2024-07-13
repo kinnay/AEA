@@ -8,8 +8,8 @@ Every AEA file is laid out as follows:
 * [File header](#file-header)
 * [Auth data](#auth-data)
 * [Signature](#signature)
-* [Hardcoded key](#hardcoded-key)
-* [Hardcoded salt](#hardcoded-salt)
+* [Random key](#random-key)
+* [Random salt](#random-salt)
 * Root header MAC
 * [Encrypted root header](#root-header)
 * MAC of first cluster
@@ -18,8 +18,6 @@ Every AEA file is laid out as follows:
 The following concepts are also important:
 * [Profiles](#profiles)
 * [Key derivation](#key-derivation)
-
-The file header and auth data sections are the only sections that are not encrypted.
 
 All values are encoded in little-endian byte order.
 
@@ -45,17 +43,21 @@ Example: `090000006b65790076616c7565`
 There is no padding between key-value pairs or behind the auth data, even if this causes the rest of the file to be unaligned.
 
 ## Signature
-If the profile uses signing, this section contains an ECDSA signature. The signature is calculated over the SHA-256 hash of all bytes from the start of the file up to and including the first cluster MAC, with the signature itself set to null bytes. The key is specified on the command line.
+If the profile uses signing, this section contains an ECDSA signature. The signature is calculated over the SHA-256 hash of all bytes from the start of the file up to and including the first cluster MAC, with the signature itself set to null bytes. The key is specified on the command line. The signature is padded with null bytes until it is 128 bytes in size.
+
+If the profile uses encryption, the signature is encrypted with the [signature encryption key](#key-derivation) using AES-CTR and a HMAC-SHA256 is appended to it.
 
 If the profile does not use signing, this section is empty.
 
-## Hardcoded Key
-If the profile specifies encryption, this section is empty and the key is specified on the command line.
+**Note:** even for profiles that use signing, the [aea](https://manpagehub.com/aea) tool supports the creation of unsigned archives. In that case, the signature is filled with null bytes. Unsigned archives must be signed later in order to become valid.
 
-If the profile does not specify encryption, this section contains a random 32-byte key. In this case, the archive is still encrypted with AES-CTR, but the [main key](#main-key) is derived from the hardcoded key instead of a user-specified key.
+## Random Key
+If the profile uses encryption, this section is empty and the key is specified on the command line.
 
-## Hardcoded Salt
-This section contains 32 random bytes. This is the salt that is used to derive the [main key](#main-key).
+If the profile does not use encryption, this section contains a random 32-byte key, and the [main key](#key-derivation) is derived from the random key instead of a user-specified key.
+
+## Random Salt
+This section contains 32 random bytes. This is the salt that is used to derive the [main key](#key-derivation).
 
 ## Root Header
 The root header is encrypted with the [root header key](#key-derivation).
@@ -116,10 +118,12 @@ The AEA file format supports different profiles, each of which specifies a diffe
 
 ## Key Derivation
 All keys that are used in the AEA format are derived using HKDF-SHA256. The IKM, info and salt depend on the type of key that is generated. Keys come in two flavors:
-* 32-byte keys that are used to derive other keys.
-* 80-byte keys that are used for encryption and MACs.
+* **Key derivation keys:** 32-byte keys that are used to derive other keys
+* **Data keys:** 32-byte or 80-byte keys that are used for encryption and MACs
 
-The second flavor is laid out as follows:
+If the [profile](#profiles) does not use encryption, a data key consists of 32 bytes and is only used for HMACs.
+
+If the [profile](#profiles) uses encryption, a data key consists of the following 80 bytes:
 
 | Offset | Size | Description |
 | --- | --- | --- |
@@ -130,57 +134,53 @@ The second flavor is laid out as follows:
 The following keys are used in AEA files:
 
 * [Main key](#main-key)
+* [Signature encryption key derivation key](#signature-encryption-key-derivation-key)
+* [Signature encryption key](#signature-encryption-key)
 * [Root header key](#root-header-key)
 * [Cluster key](#cluster-key)
 * [Cluster header key](#cluster-header-key)
 * [Segment key](#segment-key)
 
-### Main Key
-* **Size:** 32 bytes
-* **IKM:** the key that is specified on the command line
-* **Salt:** specified at the [beginning of the file](#general-structure) before the root header MAC
-* **Purpose:** used to derive the [root header key](#root-header-key) and [cluster keys](#cluster-key)
+For the main key, the salt is specified at the [beginning of the file](#general-structure) before the root header MAC. For all other keys, the salt is empty.
 
-**Info:**
-| Offset | Size | Description |
-| --- | --- | --- |
-| 0x0 | 7 | `AEA_AMK` |
-| 0x7 | 4 | Bytes 4-7 of the [header](#file-header) |
+### Main Key
+* **Type:** key derivation key
+* **Purpose:** used to derive the [root header key](#root-header-key) and [cluster keys](#cluster-key)
+* **IKM:** the key that is specified on the command line
+* **Info:** `AEA_AMK` plus bytes 4-7 of the [file header](#file-header)
+
+### Signature Encryption Key Derivation Key
+* **Type:** key derivation key
+* **Purpose:** used to derive the [signature encryption key](#signature-encryption-key)
+* **IKM:** the [main key](#main-key)
+* **Info:** `AEA_SEK`
+
+### Signature Encryption Key
+* **Type:** data key
+* **Purpose:** used to encrypt the [file signature](#signature)
+* **IKM:** the [signature encryption key derivation key](#signature-encryption-key-derivation-key)
+* **Info:** `AEA_SEK2`
 
 ### Root Header Key
-* **Size:** 80 bytes
-* **IKM:** the [main key](#main-key)
-* **Salt:** empty
+* **Type:** data key
 * **Purpose:** used to encrypt the [root header](#root-header)
+* **IKM:** the [main key](#main-key)
 * **Info:** `AEA_RHEK`
 
 ### Cluster Key
-* **Size:** 32 bytes
-* **IKM:** the [main key](#main-key)
-* **Salt:** empty
+* **Type:** key derivation key
 * **Purpose:** used to derive the [cluster header key](#cluster-header-key) and [segment keys](#segment-keys)
-
-**Info:**
-| Offset | Size | Description |
-| --- | --- | --- |
-| 0x0 | 6 | `AEA_CK` |
-| 0x6 | 4 | Cluster index |
+* **IKM:** the [main key](#main-key)
+* **Info:** `AEA_CK` plus the cluster index as 32-bit integer
 
 ### Cluster Header Key
-* **Size:** 80 bytes
-* **IKM:** the [cluster key](#cluster-key)
-* **Salt:** empty
+* **Type:** data key
 * **Purpose:** used to encrypt the segment headers in the [cluster](#cluster)
+* **IKM:** the [cluster key](#cluster-key)
 * **Info:** `AEA_CHEK`
 
 ### Segment Key
-* **Size:** 80 bytes
-* **IKM:** the [cluster key](#cluster-key)
-* **Salt:** empty
+* **Tpye:** data key
 * **Purpose:** used to encrypt a segment of the original file
-
-**Info:**
-| Offset | Size | Description |
-| --- | --- | --- |
-| 0x0 | 6 | `AEA_SK` |
-| 0x6 | 4 | Segment index |
+* **IKM:** the [cluster key](#cluster-key)
+* **Info:** `AEA_SK` plus the segment index as 32-bit integer
