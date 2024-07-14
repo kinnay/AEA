@@ -10,10 +10,10 @@ Every AEA file is laid out as follows:
 * [Signature](#signature)
 * [Random key](#random-key)
 * [Random salt](#random-salt)
-* Root header MAC
+* [Root header MAC](#root-header-mac)
 * [Encrypted root header](#root-header)
-* MAC of first cluster
-* [Encrypted clusters](#cluster)
+* [MAC of first cluster](#first-cluster-mac)
+* [Data clusters](#cluster)
 
 The following concepts are also important:
 * [Profiles](#profiles)
@@ -26,7 +26,7 @@ All values are encoded in little-endian byte order.
 | --- | --- | --- |
 | 0x0 | 4 | Magic number (`AEA1`) |
 | 0x4 | 3 | [Profile id](#profiles) |
-| 0x7 | 1 | Always 0 |
+| 0x7 | 1 | Scrypt strength |
 | 0x8 | 4 | Auth data size |
 
 ## Auth Data
@@ -52,12 +52,15 @@ If the profile does not use signing, this section is empty.
 **Note:** even for profiles that use signing, the [aea](https://manpagehub.com/aea) tool supports the creation of unsigned archives. In that case, the signature is filled with null bytes. Unsigned archives must be signed later in order to become valid.
 
 ## Random Key
-If the profile uses encryption, this section is empty and the key is specified on the command line.
+If the profile uses encryption, this section is empty and the [main key](#key-derivation) is derived from the key that is specified on the command line.
 
-If the profile does not use encryption, this section contains a random 32-byte key, and the [main key](#key-derivation) is derived from the random key instead of a user-specified key.
+If the profile does not use encryption, [key derivation](#key-derivation) is still required for HMACs. In that case, this section contains a random 32-byte key, and the [main key](#key-derivation) is derived from the random key instead of a user-specified key.
 
 ## Random Salt
 This section contains 32 random bytes. This is the salt that is used to derive the [main key](#key-derivation).
+
+## Root Header MAC
+This section contains the HMAC-SHA256 of the encrypted [root header](#root-header). The HMAC is calculated using the [root header key](#key-derivation).
 
 ## Root Header
 The root header is encrypted with the [root header key](#key-derivation).
@@ -72,6 +75,9 @@ The root header is encrypted with the [root header key](#key-derivation).
 | 0x19 | 1 | Checksum algorithm (0=None, 1=Murmur, 2=SHA-256) |
 | 0x1A | 6 | Padding (always 0) |
 | 0x20 | 16 | Unknown |
+
+## First Cluster MAC
+This section contains the HMAC-SHA256 of the first [cluster header](#cluster).
 
 ## Cluster
 The segment headers are encrypted with the [cluster header key](#key-derivation). The segments are encrypted with the [segment keys](#key-derivation).
