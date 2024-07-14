@@ -12,11 +12,12 @@ Every AEA file is laid out as follows:
 * [Random salt](#random-salt)
 * [Root header MAC](#root-header-mac)
 * [Encrypted root header](#root-header)
-* [MAC of first cluster](#first-cluster-mac)
-* [Data clusters](#cluster)
+* [First cluster header MAC](#first-cluster-header-mac)
+* [Data clusters](#data-clusters)
 
 The following concepts are also important:
 * [Profiles](#profiles)
+* [MAC calculation](#mac-calculation)
 * [Key derivation](#key-derivation)
 
 All values are encoded in little-endian byte order.
@@ -26,11 +27,11 @@ All values are encoded in little-endian byte order.
 | --- | --- | --- |
 | 0x0 | 4 | Magic number (`AEA1`) |
 | 0x4 | 3 | [Profile id](#profiles) |
-| 0x7 | 1 | Scrypt strength |
+| 0x7 | 1 | [Scrypt strength](#key-derivation) |
 | 0x8 | 4 | Auth data size |
 
 ## Auth Data
-The auth data is stored right after the [file header](#file-header) and contains either a raw binary blob or a number of key-value pairs. The size of the auth data is specified in the [file header](#file-header). If the auth data contains a list of key-value pairs, every pair is encoded by concatening the key and value with a null byte inbetween, and is prefixed with a 32-bit integer that specifies its size:
+The auth data can be used to add metadata to the file. It is stored right after the [file header](#file-header) and contains either a raw binary blob or a number of key-value pairs. The size of the auth data is specified in the [file header](#file-header). If the auth data contains a list of key-value pairs, every pair is encoded by concatening the key and value with a null byte inbetween, and is prefixed with a 32-bit integer that specifies its size:
 
 ```python
 def encode(key, value):
@@ -45,22 +46,24 @@ There is no padding between key-value pairs or behind the auth data, even if thi
 ## Signature
 If the profile uses signing, this section contains an ECDSA signature. The signature is calculated over the SHA-256 hash of all bytes from the start of the file up to and including the first cluster MAC, with the signature itself set to null bytes. The key is specified on the command line. The signature is padded with null bytes until it is 128 bytes in size.
 
-If the profile uses encryption, the signature is encrypted with the [signature encryption key](#key-derivation) using AES-CTR and a HMAC-SHA256 is appended to it.
+If the profile uses encryption, the signature is encrypted with the [signature encryption key](#key-derivation) using AES-CTR and a [MAC](#mac-calculation) is appended to it (empty salt).
 
 If the profile does not use signing, this section is empty.
 
-**Note:** even for profiles that use signing, the [aea](https://manpagehub.com/aea) tool supports the creation of unsigned archives. In that case, the signature is filled with null bytes. Unsigned archives must be signed later in order to become valid.
+**Note:** even for profiles that use signing, the [aea](https://manpagehub.com/aea) tool supports the creation of unsigned archives. In that case, the signature is filled with null bytes before it is encrypted. Unsigned archives must be signed later in order to become valid.
 
 ## Random Key
-If the profile uses encryption, this section is empty and the [main key](#key-derivation) is derived from the key that is specified on the command line.
+The purpose of this section depends on the profile.
 
-If the profile does not use encryption, [key derivation](#key-derivation) is still required for HMACs. In that case, this section contains a random 32-byte key, and the [main key](#key-derivation) is derived from the random key instead of a user-specified key.
+* **No encryption:** this section contains a random 32-byte key from which the [main key](#key-derivation) is derived.
+* **Symmetric or password-based encryption:** this section is empty. The [main key](#key-derivation) is derived from the key or password that is specified on the command line.
+* **Asymmetric encryption:** this section contains the public key of the sender (65 bytes). This can be used by the receiver to calculate the shared secret from which the [main key](#key-derivation) is derived.
 
 ## Random Salt
 This section contains 32 random bytes. This is the salt that is used to derive the [main key](#key-derivation).
 
 ## Root Header MAC
-This section contains the HMAC-SHA256 of the encrypted [root header](#root-header). The HMAC is calculated using the [root header key](#key-derivation).
+This section contains [MAC](#mac-calculation) of the encrypted [root header](#root-header). The salt contains the [first cluster MAC](#first-cluster-mac) plus the [auth data](#auth-data). The MAC is calculated using the [root header key](#key-derivation).
 
 ## Root Header
 The root header is encrypted with the [root header key](#key-derivation).
@@ -70,31 +73,51 @@ The root header is encrypted with the [root header key](#key-derivation).
 | 0x0 | 8 | Original file size |
 | 0x8 | 8 | Encrypted archive size |
 | 0x10 | 4 | Segment size |
-| 0x14 | 4 | Segments per cluster |
-| 0x18 | 1 | Compression algorithm |
+| 0x14 | 4 | Segments per [cluster](#data-clusters) |
+| 0x18 | 1 | [Compression algorithm](#compression-algorithms) |
 | 0x19 | 1 | Checksum algorithm (0=None, 1=Murmur, 2=SHA-256) |
-| 0x1A | 6 | Padding (always 0) |
-| 0x20 | 16 | Unknown |
+| 0x1A | 22 | Always 0 |
 
-## First Cluster MAC
-This section contains the HMAC-SHA256 of the first [cluster header](#cluster).
+The segment size must be at least `0x4000` (16 KB) and is set to `0x100000` (1 MB) by the official aea tool. The segments per cluster must be at least 32 and is set to 256 by the official aea tool.
 
-## Cluster
+### Compression Algorithms
+| ID | Description |
+| --- | --- |
+| `-` | None |
+| `4` | LZ4 |
+| `b` | LZBITMAP |
+| `e` | LZFSE|
+| `f` | LZVN |
+| `x` | LZMA |
+| `z` | ZLIB |
+
+## First Cluster Header MAC
+This section contains the [MAC](#mac-calculation) of the first 0x2800 bytes of the first [cluster header](#data-clusters). The salt is bytes 0x2800 - 0x4820 of the first [cluster header](#data-clusters). The key is the [cluster header key](#key-derivation).
+
+## Data Clusters
+Large files are divided into multiple clusters, each of which is divided into multiple segments. This is done such that decryption of the file can be parallelized across threads.
+
 The segment headers are encrypted with the [cluster header key](#key-derivation). The segments are encrypted with the [segment keys](#key-derivation).
 
 | Offset | Size | Description |
 | --- | --- | --- |
 | 0x0 | 0x2800 | Encrypted [segment headers](#segment-header) |
-| 0x2800 | 0x20 | MAC of next cluster header |
+| 0x2800 | 0x20 | Next cluster header MAC |
 | 0x2820 | 0x2000 | Segment MACs |
 | 0x4820 | | Encrypted segments |
+
+The next cluster header MAC is [calculated](#mac-calculation) over bytes 0x2800 of the next cluster header. The salt is bytes 0x2800 - 0x4820 of the next cluster header. The key is the [cluster header key](#key-derivation) of the next cluster header.
+
+In the last cluster header, the next cluster header MAC is set to random bytes.
 
 ### Segment Header
 | Offset | Size | Description |
 | --- | --- | --- |
 | 0x0 | 4 | Original size |
-| 0x4 | 4 | Encoded size |
+| 0x4 | 4 | Compressed size |
 | 0x8 | | Checksum |
+
+The checksum is calculated over the decrypted segment data. The compression and checksum algorithm are specified in the [root header](#root-header).
 
 ## Profiles
 The AEA file format supports different profiles, each of which specifies a different type of encryption and signatures. The following tables describe the different profiles:
@@ -110,7 +133,7 @@ The AEA file format supports different profiles, each of which specifies a diffe
 | 2 | Symmetric encryption, signed |
 | 3 | Asymmetric encryption |
 | 4 | Asymmetric encryption, signed |
-| 5 | Scrypt encryption (password based) |
+| 5 | Password-based encryption |
 
 ### Names
 | Profile ID | Name |
@@ -121,6 +144,15 @@ The AEA file format supports different profiles, each of which specifies a diffe
 | 3 | `hkdf_sha256_aesctr_hmac__ecdhe_p256__none` |
 | 4 | `hkdf_sha256_aesctr_hmac__ecdhe_p256__ecdsa_p256` |
 | 5 | `hkdf_sha256_aesctr_hmac__scrypt__none` |
+
+## MAC Calculation
+The MAC algorithm is HMAC-SHA256. Before a MAC is calculated, a salt is prepended to the data and the size of the salt is appended to the data as a 64-bit integer:
+
+```python
+def mac(key, data, salt):
+    data = salt + data + struct.pack("<Q", len(salt))
+    return hmac.digest(key, data, "sha256")
+```
 
 ## Key Derivation
 All keys that are used in the AEA format are derived using HKDF-SHA256. The IKM, info and salt depend on the type of key that is generated. Keys come in two flavors:
@@ -181,7 +213,7 @@ For the main key, the salt is specified at the [beginning of the file](#general-
 
 ### Cluster Header Key
 * **Type:** data key
-* **Purpose:** used to encrypt the segment headers in the [cluster](#cluster)
+* **Purpose:** used to encrypt the segment headers in the [cluster](#data-clusters)
 * **IKM:** the [cluster key](#cluster-key)
 * **Info:** `AEA_CHEK`
 
