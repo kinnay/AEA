@@ -78,7 +78,7 @@ The root header is encrypted with the [root header key](#key-derivation).
 | 0x19 | 1 | Checksum algorithm (0=None, 1=Murmur, 2=SHA-256) |
 | 0x1A | 22 | Always 0 |
 
-The segment size must be at least `0x4000` (16 KB) and is set to `0x100000` (1 MB) by the official AEA tool. The segments per cluster must be at least 32 and is set to 256 by the official AEA tool.
+The segment size must be at least `0x4000` (16 KB) and is set to `0x100000` (1 MB) by default. The segments per cluster must be at least 32 and is set to 256 by default.
 
 ### Compression Algorithms
 | ID | Description |
