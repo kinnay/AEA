@@ -44,7 +44,7 @@ Example: `090000006b65790076616c7565`
 There is no padding between key-value pairs or behind the auth data, even if this causes the rest of the file to be unaligned.
 
 ## Signature
-If the profile uses signing, this section contains an ECDSA signature. The signature is calculated over the SHA-256 hash of all bytes from the start of the file up to and including the first cluster MAC, with the signature itself set to null bytes. The key is specified on the command line. The signature is padded with null bytes until it is 128 bytes in size.
+If the profile uses signing, this section contains an ECDSA signature on NIST P-256. The signature is calculated over the SHA-256 hash of all bytes from the start of the file up to and including the first cluster MAC, with the signature itself set to null bytes. The key is specified on the command line. The signature is padded with null bytes until it is 128 bytes in size.
 
 If the profile uses encryption, the signature is encrypted with the [signature encryption key](#key-derivation) using AES-CTR and a [MAC](#mac-calculation) is appended to it (empty salt).
 
@@ -194,7 +194,7 @@ The IKM depends on the profile:
 
 * **No encryption** the [random key](#random-key)
 * **Symmetric encryption:** the key that is specified on the command-line
-* **Asymmetric encryption:** the shared secret that is derived from the sender's and recipient's public/private key using ECDH
+* **Asymmetric encryption:** the shared secret that is derived from the sender's and recipient's public/private key using ECDH on NIST P-256
 * **Password-based encryption:** the key that is derived from the password using scrypt
 
 For password-based encryption, the cost factor (N) is specified in the [file header](#file-header). It can have one of the following values:
