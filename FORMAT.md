@@ -78,7 +78,7 @@ The root header is encrypted with the [root header key](#key-derivation).
 | 0x19 | 1 | Checksum algorithm (0=None, 1=Murmur, 2=SHA-256) |
 | 0x1A | 22 | Always 0 |
 
-The segment size must be at least `0x4000` (16 KB) and is set to `0x100000` (1 MB) by the official aea tool. The segments per cluster must be at least 32 and is set to 256 by the official aea tool.
+The segment size must be at least `0x4000` (16 KB) and is set to `0x100000` (1 MB) by the official AEA tool. The segments per cluster must be at least 32 and is set to 256 by the official AEA tool.
 
 ### Compression Algorithms
 | ID | Description |
@@ -179,13 +179,41 @@ The following keys are used in AEA files:
 * [Cluster header key](#cluster-header-key)
 * [Segment key](#segment-key)
 
-For the main key, the salt is specified at the [beginning of the file](#general-structure) before the root header MAC. For all other keys, the salt is empty.
+For the main key, a [random salt](#random-salt) is used for key derivation. For all other keys, the salt is empty.
 
 ### Main Key
+The IKM and info that are used to derive the main key depend on the [profile](#profiles).
+
 * **Type:** key derivation key
-* **Purpose:** used to derive the [root header key](#root-header-key) and [cluster keys](#cluster-key)
-* **IKM:** the key that is specified on the command line
-* **Info:** `AEA_AMK` plus bytes 4-7 of the [file header](#file-header)
+* **Purpose:** used to derive all other key derivation keys
+* **IKM:** see below
+* **Info:** `AEA_AMK`, bytes 4-7 of the [file header](#file-header), the sender's and recipient's public keys (if the profile uses asymmetric encryption), and the signing public key (if the profile uses signing), all concatenated.
+
+The IKM depends on the profile:
+
+* **No encryption** the [random key](#random-key)
+* **Symmetric encryption:** the key that is specified on the command-line
+* **Asymmetric encryption:** the shared secret that is derived from the sender's and recipient's public/private key using ECDH
+* **Password-based encryption:** the key that is derived from the password using scrypt
+
+For password-based encryption, the cost factor (N) is specified in the [file header](#file-header). It can have one of the following values:
+
+| Value | N |
+| ---  | --- |
+| 0 | `0x4000` |
+| 1 | `0x10000` |
+| 2 | `0x40000` |
+| 3 | `0x100000` |
+
+The official AEA tool always sets it to 0.
+
+When password-based encryption is used, a [new 64-byte salt](#scrypt-salt) is generated from the [random salt](#random-salt). The first 32 bytes are used as the salt for the scrypt algorithm. The next 32 bytes are used as the salt for the HKDF algorithm.
+
+### Scrypt Salt
+* **Type:** 64-byte salt
+* **Purpose:** used as a salt for [main key](#main-key) derivation
+* **IKM:** the [random salt](#random-salt)
+* **Info:** `AEA_SCRYPT`
 
 ### Signature Encryption Key Derivation Key
 * **Type:** key derivation key

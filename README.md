@@ -6,8 +6,6 @@ Eventually, this repository aims to provide the following features:
 * A Python library to work with AEA files in code.
 * Documentation that describes the AEA file format.
 
-Currently, only partial documentation of the file format is available.
-
 ### Documentation
 * [The AEA file format](https://github.com/kinnay/AEA/blob/main/FORMAT.md)
 
