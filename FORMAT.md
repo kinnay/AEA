@@ -92,21 +92,22 @@ The segment size must be at least `0x4000` (16 KB) and is set to `0x100000` (1 M
 | `z` | ZLIB |
 
 ## First Cluster Header MAC
-This section contains the [MAC](#mac-calculation) of the first 0x2800 bytes of the first [cluster header](#data-clusters). The salt is bytes 0x2800 - 0x4820 of the first [cluster header](#data-clusters). The key is the [cluster header key](#key-derivation).
+This section contains the [MAC](#mac-calculation) of the encrypted segment headers of the first [cluster header](#data-clusters). The salt is the remaining part of the first [cluster header](#data-clusters). The key is the [cluster header key](#key-derivation).
 
 ## Data Clusters
 Large files are divided into multiple clusters, each of which is divided into multiple segments. This is done such that decryption of the file can be parallelized across threads.
 
+A data cluster contains the following sections:
+* A list of encrypted [segment headers](#segment-headers)
+* The next cluster header MAC
+* A list that contains the MAC of each segment
+* A list of encrypted segments
+
+The number of entries in each list depends on the number of segments per cluster that is specified in the [root header](#root-header).
+
 The segment headers are encrypted with the [cluster header key](#key-derivation). The segments are encrypted with the [segment keys](#key-derivation).
 
-| Offset | Size | Description |
-| --- | --- | --- |
-| 0x0 | 0x2800 | Encrypted [segment headers](#segment-header) |
-| 0x2800 | 0x20 | Next cluster header MAC |
-| 0x2820 | 0x2000 | Segment MACs |
-| 0x4820 | | Encrypted segments |
-
-The next cluster header MAC is [calculated](#mac-calculation) over bytes 0x2800 of the next cluster header. The salt is bytes 0x2800 - 0x4820 of the next cluster header. The key is the [cluster header key](#key-derivation) of the next cluster header.
+The next cluster header MAC is [calculated](#mac-calculation) over the encrypted segment headers of the next cluster header. The salt the remaining part of the next cluster header. The key is the [cluster header key](#key-derivation) of the next cluster header.
 
 In the last cluster header, the next cluster header MAC is set to random bytes.
 
