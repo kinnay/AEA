@@ -8,8 +8,8 @@ Every AEA file is laid out as follows:
 * [File header](#file-header)
 * [Auth data](#auth-data)
 * [Signature](#signature)
-* [Random key](#random-key)
-* [Random salt](#random-salt)
+* [Public key](#public-key)
+* [Main salt](#main-salt)
 * [Root header MAC](#root-header-mac)
 * [Encrypted root header](#root-header)
 * [First cluster header MAC](#first-cluster-header-mac)
@@ -52,14 +52,14 @@ If the profile does not use signing, this section is empty.
 
 **Note:** even for profiles that use signing, the [aea](https://manpagehub.com/aea) tool supports the creation of unsigned archives. In that case, the signature is filled with null bytes before it is encrypted. Unsigned archives must be signed later in order to become valid.
 
-## Random Key
+## Public Key
 The purpose of this section depends on the profile.
 
 * **No encryption:** this section contains a random 32-byte key from which the [main key](#key-derivation) is derived.
 * **Symmetric or password-based encryption:** this section is empty. The [main key](#key-derivation) is derived from the key or password that is specified on the command line.
 * **Asymmetric encryption:** this section contains the public key of the sender (65 bytes). This can be used by the receiver to calculate the shared secret from which the [main key](#key-derivation) is derived.
 
-## Random Salt
+## Main Salt
 This section contains 32 random bytes. This is the salt that is used to derive the [main key](#key-derivation).
 
 ## Root Header MAC
@@ -180,7 +180,7 @@ The following keys are used in AEA files:
 * [Cluster header key](#cluster-header-key)
 * [Segment key](#segment-key)
 
-For the main key, a [random salt](#random-salt) is used for key derivation. For all other keys, the salt is empty.
+For the main key, the [main salt](#main-salt) is used for key derivation. For all other keys, the salt is empty.
 
 ### Main Key
 The IKM and info that are used to derive the main key depend on the [profile](#profiles).
@@ -192,7 +192,7 @@ The IKM and info that are used to derive the main key depend on the [profile](#p
 
 The IKM depends on the profile:
 
-* **No encryption** the [random key](#random-key)
+* **No encryption** the [public key](#public-key)
 * **Symmetric encryption:** the key that is specified on the command-line
 * **Asymmetric encryption:** the shared secret that is derived from the sender's and recipient's public/private key using ECDH on NIST P-256
 * **Password-based encryption:** the key that is derived from the password using scrypt
@@ -208,12 +208,12 @@ For password-based encryption, the cost factor (N) is specified in the [file hea
 
 The official AEA tool always sets it to 0.
 
-When password-based encryption is used, a [new 64-byte salt](#scrypt-salt) is generated from the [random salt](#random-salt). The first 32 bytes are used as the salt for the scrypt algorithm. The next 32 bytes are used as the salt for the HKDF algorithm.
+When password-based encryption is used, an [extended 64-byte salt](#scrypt-salt) is generated from the [main salt](#main-salt). The first 32 bytes are used as the salt for the scrypt algorithm. The next 32 bytes are used as the salt for the HKDF algorithm.
 
 ### Scrypt Salt
 * **Type:** 64-byte salt
 * **Purpose:** used as a salt for [main key](#main-key) derivation
-* **IKM:** the [random salt](#random-salt)
+* **IKM:** the [main salt](#main-salt)
 * **Info:** `AEA_SCRYPT`
 
 ### Signature Encryption Key Derivation Key
