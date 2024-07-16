@@ -22,6 +22,8 @@ The following concepts are also important:
 
 All values are encoded in little-endian byte order.
 
+When public keys are serialized, the uncompressed X9.62 encoding is used.
+
 ## File Header
 | Offset | Size | Description |
 | --- | --- | --- |
