@@ -63,7 +63,7 @@ The purpose of this section depends on the profile.
 This section contains 32 random bytes. This is the salt that is used to derive the [main key](#key-derivation).
 
 ## Root Header MAC
-This section contains [MAC](#mac-calculation) of the encrypted [root header](#root-header). The salt contains the [first cluster MAC](#first-cluster-mac) plus the [auth data](#auth-data). The MAC is calculated using the [root header key](#key-derivation).
+This section contains the [MAC](#mac-calculation) of the encrypted [root header](#root-header). The salt contains the [first cluster MAC](#first-cluster-mac) plus the [auth data](#auth-data). The MAC is calculated using the [root header key](#key-derivation).
 
 ## Root Header
 The root header is encrypted with the [root header key](#key-derivation).
