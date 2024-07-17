@@ -107,7 +107,7 @@ A data cluster contains the following sections:
 
 The number of entries in each list depends on the number of segments per cluster that is specified in the [root header](#root-header).
 
-The segment headers are encrypted with the [cluster header key](#key-derivation). The segments are encrypted with the [segment keys](#key-derivation).
+The list of segment headers is encrypted with the [cluster header key](#key-derivation). The segments are encrypted with the [segment keys](#key-derivation).
 
 The next cluster header MAC is [calculated](#mac-calculation) over the encrypted segment headers of the next cluster header. The salt the remaining part of the next cluster header. The key is the [cluster header key](#key-derivation) of the next cluster header.
 
