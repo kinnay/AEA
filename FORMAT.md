@@ -100,7 +100,7 @@ This section contains the [MAC](#mac-calculation) of the encrypted segment heade
 Large files are divided into multiple clusters, each of which is divided into multiple segments. This is done such that decryption of the file can be parallelized across threads.
 
 A data cluster contains the following sections:
-* A list of encrypted [segment headers](#segment-headers)
+* A list of encrypted [segment headers](#segment-header)
 * The next cluster header MAC
 * A list that contains the MAC of each segment
 * A list of encrypted segments
