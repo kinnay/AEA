@@ -82,6 +82,8 @@ The root header is encrypted with the [root header key](#key-derivation).
 
 The segment size must be at least `0x4000` (16 KB) and is set to `0x100000` (1 MB) by default. The segments per cluster must be at least 32 and is set to 256 by default.
 
+When murmur is used, the checksum algorithm is MurmurHash64A with the seed `0xE2236FDC26A5F6D2`.
+
 ### Compression Algorithms
 | ID | Description |
 | --- | --- |
