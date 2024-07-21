@@ -124,6 +124,8 @@ In the last cluster header, the next cluster header MAC is set to random bytes.
 
 The checksum is calculated over the decrypted segment data. The compression and checksum algorithm are specified in the [root header](#root-header).
 
+**Note:** the compressed size may not be higher than the original size. If the compression algorithm would increase the size of the segment, the segment data must be stored uncompressed. During decoding, uncompressed segments can be recognized by checking whether the original size is equal to the compressed size.
+
 ## Profiles
 The AEA file format supports different profiles, each of which specifies a different type of encryption and signatures. The following tables describe the different profiles:
 
