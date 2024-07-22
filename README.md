@@ -8,6 +8,9 @@ Currently, this repository provides:
 Eventually, it also aims to provide:
 * An open source command line tool with the same interface as the official [aea](https://manpagehub.com/aea) tool.
 
+### Installation
+This package can be installed with pip: `pip install python-aea`. This package uses [semantic versioning](https://semver.org/).
+
 ### Documentation
 * [The AEA file format](https://github.com/kinnay/AEA/blob/main/FORMAT.md)
 * [The classes and functions in this package](https://aea.readthedocs.io)
