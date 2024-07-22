@@ -1,0 +1,16 @@
+
+code, .rst-content code {
+	background: transparent;
+	font-size: 100%;
+	border: none;
+	padding: 0px;
+}
+
+.docs {
+	margin-left: 25px;
+	display: inline-block;
+}
+
+.docs code {
+	color: #c60;
+}
