@@ -1,6 +1,11 @@
 
 ## Changelog
 
+### 1.0.1
+Fixed the license that is specified in `setup.py`.
+
+*Released on 2025-07-16*
+
 ### 1.0.0
 Initial release.
 
