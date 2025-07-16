@@ -6,13 +6,13 @@ long_description = \
 
 setuptools.setup(
 	name = "python-aea",
-	version = "1.0.0",
+	version = "1.0.1",
 	description = "Apple Encrypted Archive tools",
 	long_description = long_description,
 	author = "Yannik Marchand",
 	author_email = "ymarchand@me.com",
 	url = "https://github.com/kinnay/AEA",
-	license = "GPLv3",
+	license = "MIT",
 	packages = ["aea"],
 	entry_points = {
 		"console_scripts": [
