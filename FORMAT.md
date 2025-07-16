@@ -65,7 +65,7 @@ The purpose of this section depends on the profile.
 This section contains 32 random bytes. This is the salt that is used to derive the [main key](#key-derivation).
 
 ## Root Header MAC
-This section contains the [MAC](#mac-calculation) of the encrypted [root header](#root-header). The salt contains the [first cluster MAC](#first-cluster-mac) plus the [auth data](#auth-data). The MAC is calculated using the [root header key](#key-derivation).
+This section contains the [MAC](#mac-calculation) of the encrypted [root header](#root-header). The salt contains the [first cluster MAC](#first-cluster-header-mac) plus the [auth data](#auth-data). The MAC is calculated using the [root header key](#key-derivation).
 
 ## Root Header
 The root header is encrypted with the [root header key](#key-derivation).
@@ -198,7 +198,7 @@ The IKM and info that are used to derive the main key depend on the [profile](#p
 
 The IKM depends on the profile:
 
-* **No encryption** the [public key](#public-key)
+* **No encryption:** the [public key](#public-key)
 * **Symmetric encryption:** the key that is specified on the command-line
 * **Asymmetric encryption:** the shared secret that is derived from the sender's and recipient's public/private key using ECDH on NIST P-256
 * **Password-based encryption:** the key that is derived from the password using scrypt
@@ -253,7 +253,7 @@ When password-based encryption is used, an [extended 64-byte salt](#scrypt-salt)
 * **Info:** `AEA_CHEK`
 
 ### Segment Key
-* **Tpye:** data key
+* **Type:** data key
 * **Purpose:** used to encrypt a segment of the original file
 * **IKM:** the [cluster key](#cluster-key)
 * **Info:** `AEA_SK` plus the segment index as 32-bit integer
