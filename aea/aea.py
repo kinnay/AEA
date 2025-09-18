@@ -733,6 +733,9 @@ def decode(
 
 	segment_header_size = ChecksumSize[root_header.checksum_algorithm] + 8
 
+	decompression_function = DecompressionFunctions[root_header.compression_algorithm]
+	checksum_function = ChecksumFunctions[root_header.checksum_algorithm]
+	
 	cluster_index = 0
 	output_data = b""
 	while True:
@@ -760,12 +763,12 @@ def decode(
 			segment_data = decrypt_and_verify(segment_key, segment_data, b"", segment_mac)
 
 			if original_size > compressed_size:
-				segment_data = DecompressionFunctions[root_header.compression_algorithm](segment_data, original_size)
+				segment_data = decompression_function(segment_data, original_size)
 
 			if len(segment_data) != original_size:
 				raise ParseError("segment has incorrect size after decompression")
 			
-			calculated_checksum = ChecksumFunctions[root_header.checksum_algorithm](segment_data)
+			calculated_checksum = checksum_function(segment_data)
 			if calculated_checksum != checksum:
 				raise ChecksumValidationError("checksum validation failed")
 
