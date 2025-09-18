@@ -1,3 +1,4 @@
+from io import BufferedIOBase, BytesIO
 
 from aea import murmur
 from cryptography import exceptions
@@ -647,7 +648,20 @@ def encode(
 def decode(
 	data, *, symmetric_key=None, recipient_priv=None, password=None,
 	signature_pub=None
-):
+) -> bytes:
+	out_buffer = BytesIO()
+	decode_into(
+		data, out_buffer, symmetric_key=symmetric_key,
+		recipient_priv=recipient_priv, password=password,
+		signature_pub=signature_pub
+	)
+	return out_buffer.read()
+
+
+def decode_into(
+		data: bytes, out: BufferedIOBase, *, symmetric_key=None, recipient_priv=None,
+		password=None, signature_pub=None
+) -> None:
 	"""Decodes the given AEA file."""
 
 	stream = InputStream(data)
@@ -729,7 +743,7 @@ def decode(
 	root_header.decode(root_header_data)
 
 	if root_header.original_size == 0:
-		return b""
+		return
 
 	segment_header_size = ChecksumSize[root_header.checksum_algorithm] + 8
 
@@ -737,7 +751,7 @@ def decode(
 	checksum_function = ChecksumFunctions[root_header.checksum_algorithm]
 	
 	cluster_index = 0
-	output_data = b""
+	written_out = 0
 	while True:
 		cluster_key = key_derivation.cluster_key(cluster_index)
 		cluster_header_key = key_derivation.cluster_header_key(cluster_key)
@@ -772,10 +786,11 @@ def decode(
 			if calculated_checksum != checksum:
 				raise ChecksumValidationError("checksum validation failed")
 
-			output_data += segment_data
+			out.write(segment_data)
+			written_out += len(segment_data)
 
-			if len(output_data) == root_header.original_size:
-				return output_data
+			if written_out == root_header.original_size:
+				return
 		
 		cluster_mac = next_cluster_mac
 		cluster_index += 1
