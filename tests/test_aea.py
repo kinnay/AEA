@@ -62,7 +62,7 @@ def test_symmetric_encryption_signed():
 	signature_priv = ec.generate_private_key(ec.SECP256R1())
 	signature_pub = signature_priv.public_key()
 	data = aea.encode(
-		b"Hello World!", profile=aea.ProfileType.SYMMETRIC_ENCRYPTION,
+		b"Hello World!", profile=aea.ProfileType.SYMMETRIC_ENCRYPTION_SIGNED,
 		symmetric_key=key, signature_priv=serialize_private_key(signature_priv)
 	)
 	data = aea.decode(
@@ -87,7 +87,7 @@ def test_asymmetric_encryption_signed():
 	signature_priv = ec.generate_private_key(ec.SECP256R1())
 	signature_pub = signature_priv.public_key()
 	data = aea.encode(
-		b"Hello World!", profile=aea.ProfileType.ASYMMETRIC_ENCRYPTION,
+		b"Hello World!", profile=aea.ProfileType.ASYMMETRIC_ENCRYPTION_SIGNED,
 		recipient_pub=serialize_public_key(recipient_pub),
 		signature_priv=serialize_private_key(signature_priv)
 	)
