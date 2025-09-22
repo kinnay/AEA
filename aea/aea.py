@@ -1,4 +1,3 @@
-from io import BufferedIOBase, BytesIO
 
 from aea import murmur
 from cryptography import exceptions
@@ -10,6 +9,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 import enum
 import hashlib
 import hmac
+import io
 import liblzfse
 import lz4.block
 import lzma
@@ -467,8 +467,14 @@ def derive_main_key(
 		stream.write(serialize_public_key(signature_key))
 	return derive_key(32, symmetric_key, stream.get(), salt)
 
-def encode(
-	data, *, profile=None, symmetric_key=None, recipient_pub=None,
+def encode(data, **kwargs):
+	input = io.BytesIO(data)
+	output = io.BytesIO()
+	encode_stream(input, output, **kwargs)
+	return output.getvalue()
+
+def encode_stream(
+	input, output, *, profile=None, symmetric_key=None, recipient_pub=None,
 	password=None, signature_pub=None, signature_priv=None, auth_data=b"",
 	segment_size=0x100000, segments_per_cluster=256,
 	checksum_algorithm=ChecksumAlgorithm.SHA256,
@@ -545,24 +551,29 @@ def encode(
 
 	key_derivation = KeyDerivation(main_key, KeySize[profile])
 
+	input.seek(0, os.SEEK_END)
+	file_size = input.tell()
+
 	checksum_size = ChecksumSize[checksum_algorithm]
 	cluster_size = segment_size * segments_per_cluster
-	cluster_count = (len(data) + cluster_size - 1) // cluster_size
+	cluster_count = (file_size + cluster_size - 1) // cluster_size
 
 	clusters = []
 	next_cluster_mac = os.urandom(32)
 
+	input.seek(0)
 	for cluster_index in reversed(range(cluster_count)):
-		cluster_offset = cluster_index * cluster_size
 		cluster_key = key_derivation.cluster_key(cluster_index)
 		cluster_header_key = key_derivation.cluster_header_key(cluster_key)
 
+		# Using BytesIO is much faster than append data to a raw bytes object
+		segment_stream = io.BytesIO()
 		segment_headers = b""
 		segment_macs = b""
-		segment_blob = b""
+
+		input.seek(cluster_index * cluster_size)
 		for segment_index in range(segments_per_cluster):
-			segment_offset = cluster_offset + segment_index * segment_size
-			segment_data = data[segment_offset : segment_offset + segment_size]
+			segment_data = input.read(segment_size)
 			if segment_data:
 				checksum = ChecksumFunctions[checksum_algorithm](segment_data)
 				compressed_data = CompressionFunctions[compression_algorithm](segment_data)
@@ -577,16 +588,14 @@ def encode(
 				segment_mac = os.urandom(32)
 			segment_headers += segment_header
 			segment_macs += segment_mac
-			segment_blob += segment_data
+			segment_stream.write(segment_data)
 		
 		salt = next_cluster_mac + segment_macs
 		segment_headers, cluster_mac = encrypt_and_mac(cluster_header_key, segment_headers, salt)
-
-		clusters.append(segment_headers + next_cluster_mac + segment_macs + segment_blob)
+		
+		clusters.append(segment_headers + next_cluster_mac + segment_macs + segment_stream.getvalue())
 
 		next_cluster_mac = cluster_mac
-	
-	cluster_data = b"".join(reversed(clusters))
 
 	prologue_size = 12 + len(auth_data)
 	prologue_size += SignatureSize[profile]
@@ -594,8 +603,8 @@ def encode(
 	prologue_size += 32 + 32 + 48 + 32
 
 	root_header = RootHeader()
-	root_header.original_size = len(data)
-	root_header.archive_size = prologue_size + len(cluster_data)
+	root_header.original_size = file_size
+	root_header.archive_size = prologue_size + sum(len(cluster) for cluster in clusters)
 	root_header.segment_size = segment_size
 	root_header.segments_per_cluster = segments_per_cluster
 	root_header.checksum_algorithm = checksum_algorithm
@@ -642,42 +651,36 @@ def encode(
 	
 		stream.seek(12 + len(auth_data))
 		stream.write(signature)
+	
+	output.write(stream.get())
 
-	return stream.get() + cluster_data
+	for cluster in reversed(clusters):
+		output.write(cluster)
 
-def decode(
-	data, *, symmetric_key=None, recipient_priv=None, password=None,
-	signature_pub=None
-) -> bytes:
-	out_buffer = BytesIO()
-	decode_into(
-		data, out_buffer, symmetric_key=symmetric_key,
-		recipient_priv=recipient_priv, password=password,
-		signature_pub=signature_pub
-	)
-	return out_buffer.read()
+def decode(data, **kwargs):
+	input = io.BytesIO(data)
+	output = io.BytesIO()
+	decode_stream(input, output, **kwargs)
+	return output.getvalue()
 
-
-def decode_into(
-		data: bytes, out: BufferedIOBase, *, symmetric_key=None, recipient_priv=None,
-		password=None, signature_pub=None
-) -> None:
+def decode_stream(
+	input, output, *, symmetric_key=None, recipient_priv=None,
+	password=None, signature_pub=None
+):
 	"""Decodes the given AEA file."""
 
-	stream = InputStream(data)
-
 	header = FileHeader()
-	header.decode(stream.read(12))
+	header.decode(input.read(12))
 
-	auth_data = stream.read(header.auth_data_size)
-	signature_start = stream.tell()
-	signature = stream.read(SignatureSize[header.profile_id])
-	signature_end = stream.tell()
-	public_key = stream.read(PublicKeySize[header.profile_id])
-	main_salt = stream.read(32)
-	root_header_mac = stream.read(32)
-	root_header_data = stream.read(48)
-	cluster_mac = stream.read(32)
+	auth_data = input.read(header.auth_data_size)
+	signature_start = input.tell()
+	signature = input.read(SignatureSize[header.profile_id])
+	signature_end = input.tell()
+	public_key = input.read(PublicKeySize[header.profile_id])
+	main_salt = input.read(32)
+	root_header_mac = input.read(32)
+	root_header_data = input.read(48)
+	cluster_mac = input.read(32)
 
 	if header.profile_id == ProfileType.SIGNED:
 		symmetric_key = public_key
@@ -726,8 +729,15 @@ def decode_into(
 		# the signature so we have to remove them
 		signature = signature[:signature[1]+2]
 
-		end = stream.tell()
-		prologue = data[:signature_start] + bytes(signature_end - signature_start) + data[signature_end:end]
+		prologue_size = input.tell()
+
+		input.seek(0)
+		prologue = input.read(signature_start)
+		prologue += bytes(signature_end - signature_start)
+
+		input.seek(signature_end)
+		prologue += input.read(prologue_size - signature_end)
+
 		try:
 			signature_pub.verify(signature, prologue, ec.ECDSA(hashes.SHA256()))
 		except exceptions.InvalidSignature:
@@ -743,22 +753,18 @@ def decode_into(
 	root_header.decode(root_header_data)
 
 	if root_header.original_size == 0:
-		return
+		return b""
 
 	segment_header_size = ChecksumSize[root_header.checksum_algorithm] + 8
 
-	decompression_function = DecompressionFunctions[root_header.compression_algorithm]
-	checksum_function = ChecksumFunctions[root_header.checksum_algorithm]
-	
 	cluster_index = 0
-	written_out = 0
 	while True:
 		cluster_key = key_derivation.cluster_key(cluster_index)
 		cluster_header_key = key_derivation.cluster_header_key(cluster_key)
 
-		segment_headers = stream.read(segment_header_size * root_header.segments_per_cluster)
-		next_cluster_mac = stream.read(32)
-		segment_macs = stream.read(32 * root_header.segments_per_cluster)
+		segment_headers = input.read(segment_header_size * root_header.segments_per_cluster)
+		next_cluster_mac = input.read(32)
+		segment_macs = input.read(32 * root_header.segments_per_cluster)
 
 		segment_headers = decrypt_and_verify(
 			cluster_header_key, segment_headers,
@@ -770,26 +776,26 @@ def decode_into(
 			original_size, compressed_size = struct.unpack_from("<II", segment_header)
 			checksum = segment_header[8:]
 
-			segment_data = stream.read(compressed_size)
+			segment_data = input.read(compressed_size)
 			segment_mac = segment_macs[32*i:32*(i+1)]
 			
 			segment_key = key_derivation.segment_key(cluster_key, i)
 			segment_data = decrypt_and_verify(segment_key, segment_data, b"", segment_mac)
 
 			if original_size > compressed_size:
-				segment_data = decompression_function(segment_data, original_size)
+				segment_data = DecompressionFunctions[root_header.compression_algorithm](segment_data, original_size)
 
 			if len(segment_data) != original_size:
 				raise ParseError("segment has incorrect size after decompression")
 			
-			calculated_checksum = checksum_function(segment_data)
+			calculated_checksum = ChecksumFunctions[root_header.checksum_algorithm](segment_data)
 			if calculated_checksum != checksum:
 				raise ChecksumValidationError("checksum validation failed")
 
-			out.write(segment_data)
-			written_out += len(segment_data)
+			output.write(segment_data)
 
-			if written_out == root_header.original_size:
+			# Check if we are done
+			if output.tell() == root_header.original_size:
 				return
 		
 		cluster_mac = next_cluster_mac
