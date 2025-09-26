@@ -6,7 +6,7 @@ long_description = \
 
 setuptools.setup(
 	name = "python-aea",
-	version = "1.0.1",
+	version = "1.1.0",
 	description = "Apple Encrypted Archive tools",
 	long_description = long_description,
 	author = "Yannik Marchand",
