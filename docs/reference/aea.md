@@ -1,10 +1,16 @@
 
 # Module: <code>aea</code>
 
-Implements the Apple Encrypted Archive format.
+This module implements the Apple Encrypted Archive format.
+
+## API Reference
 
 <code>**def [encode](#encoding)**(data: bytes, \*\*kwargs) -> bytes</code><br>
+<code>**def [encode_stream](#encoding)**(input: [BinaryIO](https://docs.python.org/3/library/io.html#binary-i-o), output: [BinaryIO](https://docs.python.org/3/library/io.html#binary-i-o), \*\*kwargs) -> None</code>
+
 <code>**def [decode](#decoding)**(data: bytes, \*\*kwargs) -> bytes</code><br>
+<code>**def [decode_stream](#decoding)**(input: [BinaryIO](https://docs.python.org/3/library/io.html#binary-i-o), output: [BinaryIO](https://docs.python.org/3/library/io.html#binary-i-o), \*\*kwargs) -> None</code>
+
 <code>**def [id](#id)**(data: bytes) -> bytes</code>
 
 <code>**class [ProfileType](#profiletype)**([enum.IntEnum](https://docs.python.org/3/library/enum.html#enum.IntEnum))</code><br>
@@ -16,20 +22,18 @@ Implements the Apple Encrypted Archive format.
 <code>**class MACValidationError(ParseError)**</code><br>
 <code>**class ChecksumValidationError(ParseError)**</code>
 
-All asymmetric keys must be encoded in PEM format. Password-based encryption formats cannot be signed.
-
 ## Encoding
-If the following keyword argument is omitted, the profile is inferred from the remaining keyword arguments:
+The following keyword argument is optional and specifies how the archive is encrypted and signed. If it is omitted, the profile type is inferred from the remaining keyword arguments:
 
 * <code>profile: [ProfileType](#profiletype)</code>
 
-If one of the following keyword arguments is specified, the file is encrypted:
+If one of the following keyword arguments is specified, the archive is encrypted. No more than one of them may be specified:
 
 * `symmetric_key: bytes` (32 bytes)
 * `recipient_pub: bytes`
 * `password: str`
 
-If the following keyword argument is specified, the file is signed:
+If the following keyword argument is specified, the archive is signed
 
 * `signature_priv: bytes`
 
@@ -42,10 +46,8 @@ The following keyword arguments may also be specified:
 * <code>compression_algorithm: int = [LZFSE](#compressionalgorithm)</code>
 * `scrypt_strength: int = 0`
 
-Returns the data encoded as an AEA file.
-
 ## Decoding
-Depending on the profile, the following keyword arguments may be required:
+For decoding, the profile type is read from the file header. Depending on the profile type, the following keyword arguments may be required:
 
 * `symmetric_key: bytes` (32 bytes)
 * `recipient_priv: bytes`
@@ -59,10 +61,8 @@ The following exceptions may be raised by this function:
 * `MACValidationError`
 * `ChecksumValidationError`
 
-If no error occurs, returns the data that was encoded in the AEA file.
-
 ## Id
-Returns the archive id of the file, which is the same as the SHA-256 hash of its prologue.
+This method returns the archive id of the file, which is the same as the SHA-256 hash of its prologue.
 
 ## ProfileType
 `SIGNED = 0`<br>
