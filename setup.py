@@ -14,13 +14,7 @@ setuptools.setup(
 	url = "https://github.com/kinnay/AEA",
 	license = "MIT",
 	packages = ["aea"],
-	entry_points = {
-		"console_scripts": [
-			"aea = aea.cli:cli"
-		]
-	},
 	install_requires = [
-		"click",
 		"cryptography",
 		"lz4",
 		"pyliblzfse"
